@@ -1,0 +1,9 @@
+.*.swp
+.*.swo
+*/build/*
+data/
+logs/
+tests/*.log
+*.pth
+__pycache__
+matches.json

@@ -1,0 +1,5 @@
+*.png
+*.png.stixels
+*.swp
+build/
+tests/testdata.*

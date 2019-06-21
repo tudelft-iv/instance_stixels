@@ -1,0 +1,9 @@
+hanover_000000_044344_leftImg8bit.png
+hanover_000000_049465_leftImg8bit.png
+hanover_000000_056361_leftImg8bit.png
+krefeld_000000_000442_leftImg8bit.png
+krefeld_000000_004608_leftImg8bit.png
+krefeld_000000_010653_leftImg8bit.png
+stuttgart_000002_000019_leftImg8bit.png
+stuttgart_000010_000019_leftImg8bit.png
+stuttgart_000018_000019_leftImg8bit.png
