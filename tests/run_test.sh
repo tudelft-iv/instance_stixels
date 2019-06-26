@@ -71,12 +71,12 @@ else
   echo "Starting short tests. It should take about 28 seconds."
   LOG_FILE="${WORKING_DIRECTORY}/tmp_short.log"
   script -c\
-    "python3 run.py -c 128 120 -w 8 -j 12 -i 0.5 --disparityweight 0.5\
-     -s 0.5 --eps 16.0 --min-size 2 --size-filter 10 --evaluate --clean\
+    "python3 run.py -c 128 120 -j 12 -w 8 -i 0.00038 --disparityweight 0.24045\
+    -s 0.44162 --eps 75.06 --min-size 1 --size-filter 57 --evaluate --clean\
      ${DATA_DIRECTORY}/short_test/left_org/" ${LOG_FILE}\
      | surpress_output ${VERBOSE}
   TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
-  TRUE_VALUES="0.578 0.127 2527.8"
+  TRUE_VALUES="0.622 0.139 1271.2"
 fi
 
 echo "Checking:"
