@@ -86,7 +86,7 @@ make test
 
 Download the CNN weights and save them to `instanceoffset/weights/`:
 * `drn_d_22_cityscapes.pth` from http://go.yf.io/drn-cityscapes-models
-* `Net_DRNRegDs_epoch45.pth` from https://surfdrive.surf.nl/files/index.php/s/X3HxnfB4X1INDjm
+* `Net_DRNRegDs_epoch45.pth` from https://surfdrive.surf.nl/files/index.php/s/7r8QEbTb1hcyvOS
 
 # Testing & running
 ### Test on cityscapes
