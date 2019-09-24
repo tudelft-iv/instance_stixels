@@ -80,6 +80,8 @@ Afterwards, you can run a short test to be sure:
 make test
 ```
 
+*Note*: If you only get a failed test, you might need to adapt the `CUDA_NVCC_FLAGS` in the `CMakeLists.txt` to build for your GPUs compute capabilities.
+
 ### Download CNN weights
 
 Download the CNN weights and save them to `instanceoffset/weights/`:
