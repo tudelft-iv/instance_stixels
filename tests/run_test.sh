@@ -16,9 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-TEST_DIRECTORY=$(dirname $0)
-DATA_DIRECTORY="${TEST_DIRECTORY}/data/"
-WORKING_DIRECTORY=$(realpath "$0" | xargs dirname)
+PROJECT_DIRECTORY="$(realpath "$0" | xargs dirname)/.."
+TEST_DIRECTORY="${PROJECT_DIRECTORY}/tests"
+if [[ -z ${DATA_DIRECTORY+x} ]]
+then
+  DATA_DIRECTORY="${TEST_DIRECTORY}/data"
+fi
+WEIGHT_DIRECTORY="${PROJECT_DIRECTORY}/weights/"
+RUN_SCRIPT="${PROJECT_DIRECTORY}/tools/run_cityscapes.py"
 
 echo $0
 # Generate file(names) for long test
@@ -50,33 +55,90 @@ then
   VERBOSE="true"
 fi
 
-# source conda environment
-source activate instance_stixels
-
-
-if [[ "$1" =~ "long" ]]
+REGULARIZER="pairwise"
+if [[ "$@" =~ "unary" ]]
 then
-  TESTCASE="Long"
-  echo "Starting long tests. It should take about 17 minutes."
-  LOG_FILE="${WORKING_DIRECTORY}/tmp_long.log"
-  script -c\
-    "python3 run.py -c 128 120 -j 12 -w 8 -i 0.00038 --disparityweight 0.24045\
-    -s 0.44162 --eps 75.06 --min-size 1 --size-filter 57 --evaluate --clean\
-     ${DATA_DIRECTORY}/long_test/left_org/" ${LOG_FILE}\
-     | surpress_output ${VERBOSE}
-  TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
-  TRUE_VALUES="0.652 0.114 1374.6"
-else
-  TESTCASE="Short"
-  echo "Starting short tests. It should take about 28 seconds."
-  LOG_FILE="${WORKING_DIRECTORY}/tmp_short.log"
-  script -c\
-    "python3 run.py -c 128 120 -j 12 -w 8 -i 0.00038 --disparityweight 0.24045\
-    -s 0.44162 --eps 75.06 --min-size 1 --size-filter 57 --evaluate --clean\
-     ${DATA_DIRECTORY}/short_test/left_org/" ${LOG_FILE}\
-     | surpress_output ${VERBOSE}
-  TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
-  TRUE_VALUES="0.622 0.139 1271.2"
+    REGULARIZER="unary"
+fi
+
+CITYSCAPES="true"
+if [[ "${CITYSCAPES}" == "true" ]]
+then
+  # source conda environment
+  if ! source activate instance_stixels
+  then
+    echo "Error: Please create the \"instance_stixels\" conda environment "\
+         "using the file tools/instance_stixel_env.yml."
+    exit 1
+  fi
+
+  echo "Regularizer is: ${REGULARIZER}"
+  if [[ "${REGULARIZER}" == "pairwise" ]]
+  then
+      if [[ "$1" =~ "long" ]]
+      then
+        TESTCASE="Long"
+        echo "Starting long tests. It should take about 6 minutes."
+        LOG_FILE="${DATA_DIRECTORY}/tmp_long.log"
+        script -c\
+          "python3 ${RUN_SCRIPT} -c 128 120 -j 12 -w 8\
+           -i 0.0031312903639774976 --disparityweight 0.0001\
+           -s 4.709500548254913 --eps 18.82232269133926 --min-size 3\
+           --size-filter 25 --pairwise 1 --evaluate --clean\
+           --modelfile ${WEIGHT_DIRECTORY}/drn_d_38/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095.pth\
+           --modelname DRNDSDoubleSegSLdrn_d_38\
+           ${DATA_DIRECTORY}/long_test/left_org/" ${LOG_FILE}\
+           | surpress_output ${VERBOSE}
+        TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
+        TRUE_VALUES="0.664 0.158 1421.1"
+      else
+        TESTCASE="Short"
+        echo "Starting short tests. It should take about 16 seconds."
+        LOG_FILE="${DATA_DIRECTORY}/tmp_short.log"
+        script -c\
+          "python3 ${RUN_SCRIPT} -c 128 120 -j 12 -w 8 -i 0.00038 --disparityweight 0.24045\
+          -s 0.44162 --eps 75.06 --min-size 1 --size-filter 57 --pairwise 1 --evaluate --clean\
+           --modelfile ${WEIGHT_DIRECTORY}/drn_d_38/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095.pth\
+           --modelname DRNDSDoubleSegSLdrn_d_38\
+           ${DATA_DIRECTORY}/short_test/left_org/" ${LOG_FILE}\
+           | surpress_output ${VERBOSE}
+        TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
+        TRUE_VALUES="0.511 0.088 1290.5" # using inference.py
+      fi
+  else # if [[ "${REGULARIZER}" =~ "unary" ]]
+      if [[ "$1" =~ "long" ]]
+      then
+        TESTCASE="Long"
+        echo "Starting long tests. It should take about 6 minutes."
+        LOG_FILE="${DATA_DIRECTORY}/tmp_long.log"
+        script -c\
+          "python3 ${RUN_SCRIPT} -c 128 120 -j 12 -w 8\
+           -i 0.013686917379717443 --disparityweight 0.0006375354572396317\
+           -s 14.94984454762259 --eps 18.54 --min-size 4 --size-filter 35\
+           --pairwise 0\
+           --modelfile ${WEIGHT_DIRECTORY}/drn_d_38/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095.pth\
+           --modelname DRNDSDoubleSegSLdrn_d_38\
+           --evaluate --clean ${DATA_DIRECTORY}/long_test/left_org/" ${LOG_FILE}\
+           | surpress_output ${VERBOSE}
+        TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
+        TRUE_VALUES="0.669 0.163 2277.6"
+      else
+        TESTCASE="Short"
+        echo "Starting short tests. It should take about 16 seconds."
+        LOG_FILE="${DATA_DIRECTORY}/tmp_short.log"
+        script -c\
+          "python3 ${RUN_SCRIPT} -c 128 120 -j 12 -w 8\
+           -i 0.013686917379717443 --disparityweight 0.0006375354572396317\
+           -s 14.94984454762259 --eps 18.54 --min-size 4 --size-filter 35\
+           --pairwise 0\
+           --modelfile ${WEIGHT_DIRECTORY}/drn_d_38/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095.pth\
+           --modelname DRNDSDoubleSegSLdrn_d_38\
+           --evaluate --clean ${DATA_DIRECTORY}/short_test/left_org/" ${LOG_FILE}\
+           | surpress_output ${VERBOSE}
+        TEST_VALUES="$(awk '/^Semantic score/ {print 1.0*$4 " " 1.0*$8 " " 1.0*$12}' ${LOG_FILE})"
+        TRUE_VALUES="0.52 0.124 1947.4" # using inference.py
+      fi
+  fi
 fi
 
 echo "Checking:"
@@ -94,3 +156,12 @@ else
   echo -e "${RED}${TESTCASE} test failed!${NC}"
 fi
 
+echo "Run \"rm -r ${DATA_DIRECTORY}/long_test ${DATA_DIRECTORY}/short_test\"?"
+read -p "Run the above command to remove the data directories? (y/n)"\
+     -n 1 -r -- REMOVE_DATA
+echo
+if [[ ${REMOVE_DATA} =~ ^[Yy]$ ]]
+then
+  echo "Removing data directories."
+  rm -r ${DATA_DIRECTORY}/long_test ${DATA_DIRECTORY}/short_test
+fi

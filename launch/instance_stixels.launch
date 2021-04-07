@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <!-- Ideally check whether param has been set already, otherwise set to default. -->
+    <arg name="camera_id" default=""/>
+    <arg name="onnxfilename" default=""/>
+    <group if="$(eval onnxfilename != '')">
+        <param name="$(arg camera_id)/instance_stixels/onnxfile" value="$(arg onnxfilename)"/>
+    </group>
+
+    <group if="$(eval camera_id == '')">
+        <node name="instance_stixels" pkg="instance_stixels" type="instance_stixels" required="true" output="screen"/>
+        <node name="instance_stixels_visualization" pkg="instance_stixels" type="ros_stixel_visualization" required="true" output="screen"/>
+    </group>
+    <group if="$(eval camera_id != '')">
+        <node name="instance_stixels" pkg="instance_stixels" type="instance_stixels" required="true" ns="$(arg camera_id)" output="screen"/>
+        <node name="instance_stixels_visualization" pkg="instance_stixels" type="ros_stixel_visualization" required="true" ns="$(arg camera_id)" output="screen"/>
+    </group>
+</launch>

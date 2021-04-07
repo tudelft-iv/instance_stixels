@@ -1,121 +1,188 @@
 # Description
 This repository contains an implementation of the Instance Stixel pipeline
-which was introduced in [our](http://www.intelligent-vehicles.org)
-corresponding paper:
-[Instance Stixels: Segmenting and Grouping Stixels into Objects](http://intelligent-vehicles.org/wp-content/uploads/2019/05/hehn2019iv_instance_stixels.pdf)
+which was presented in [our](http://www.intelligent-vehicles.org)
+corresponding papers
+[Fast and Compact Image Segmentation using Instance Stixels (T-IV, 2021)](http://intelligent-vehicles.org/wp-content/uploads/2021/03/hehn2021tiv_instance_stixels.pdf)
+and
+[Instance Stixels: Segmenting and Grouping Stixels into Objects (IV, 2019)](http://intelligent-vehicles.org/wp-content/uploads/2019/05/hehn2019iv_instance_stixels.pdf).
+Our [video](https://www.youtube.com/watch?v=irrPsoWQoLY) demonstrates the
+segmentation results obtained using Instance Stixels.
 
-If you use our work, please cite:
+If you use our work, please cite the Journal paper:
 ```
-@inproceedings{Hehn2019,
-    title     = {Instance Stixels: Segmenting and Grouping Stixels into Objects},
-    author    = {Thomas Hehn and Julian F.P. Kooij and Dariu M. Gavrila},
-    booktitle = {IEEE Intelligent Vehicles Symposium (IV), Paris (France)},
-    year      = {2019},
+@ARTICLE{hehn2021,
+  author={T. {Hehn} and J. F. P. {Kooij} and D. M. {Gavrila}},
+  journal={IEEE Transactions on Intelligent Vehicles},
+  title={Fast and Compact Image Segmentation using Instance Stixels},
+  year={2021},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/TIV.2021.3067223}
 }
 ```
 
-Disclaimer:
-This implementation is a prototype and consists of multiple separate programs.
-It is not optimized for efficiency, but to provide a proof of concept and
-initial starting point for further research and development in this area.
-This program is distributed in the hope that it will be useful, but without any
-warranty.
+# Overview
 
-# Requirements
+The easiest way to use Instance Stixels is by using our
+[singularity image](https://surfdrive.surf.nl/files/index.php/s/UMv4wyf200R7Kio)
+(~7.2 GB).
+The only requirements for the host system are
+[singularity](https://sylabs.io/guides/3.6/user-guide/quick_start.html#quick-installation-steps)
+(>=3.6.1, some older 3.x
+versions may also work) and a NVIDIA cuda driver (>=10.2, see CUDA Version in
+`nvidia-smi` output).
+Further, we tested Instance Stixels only with the following GPUs:
+NVIDIA Titan Xp, Titan V, and Titan RTX.
 
-### C++
+We provide two independent applications to use our Instance Stixels library:
+1. A run script to evaluate Instance Stixels on the Cityscapes dataset
+   ([tools/run_run_cityscapes.py](tools/run_run_cityscapes.py))
+2. A ROS node for online processing ([apps/stixels_node_main.cu](apps/stixels_node_main.cu))
 
-* CUDA (Note hardware requirements below)
-* HDF5
-* OpenCV
-* cmake
+Both applications are available via the singularity image.
 
-Except for cuda, this should do the trick on Ubuntu:
+## Pre-trained CNN weights
+For both applications you will need to download the
+[CNN weights files](https://surfdrive.surf.nl/files/index.php/s/7IaK38xq1SZlSec)
+first! In the following `<WEIGHTS_PATH>` will refer to the directory where the
+zip file was extracted. It should contain the following files:
 ```
-apt-get install -y cmake libopencv-dev libhdf5-dev
-```
-
-
-### Python/Conda
-
-At the moment conda is required.
-It is recommended to install miniconda for python 3.x from:
-<https://docs.conda.io/en/latest/miniconda.html>.
-You can then create the conda environment from the yml file as follows:
-```
-conda env create -f instance_stixel_env.yml
-```
-
-Note: Running the pipeline without conda will require some modifications of the
-bash scripts.
-
-### Other (just for completeness)
-
-* make, bash, awk, ... Linux users should be fine.
-
-### Hardware (GPU)
-
-The pipeline was tested on a NVIDIA Titan V.
-The code requires about 56KB of shared memory for 1792x784 Cityscapes images.
-Downscaling the images or cropping may help to make it work on other cards
-with less shared memory available. However, this has not been tested.
-
-# Installation
-
-### Compile GPUStixels
-
-Assuming you have installed all the dependencies listed in the requirements
-section (including the conda environment "instance_stixels"), you only need to
-compile the GPUStixels code.
-Do this as follows:
-```
-cd GPUStixels
-mkdir build
-cd build
-cmake ..
-make
-```
-Afterwards, you can run a short test to be sure:
-```
-make test
+<WEIGHTS_PATH>/
+    drn_d_38/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095.pth
+    drn_d_22/DRNDSDoubleSegSL_1e-05_0.0001_0_0_0065.pth
+    onnx/DRNDSDoubleSegSL_0.0001_0.0001_0_0_0095_zmuv_fp.onnx
+    onnx/DRNDSDoubleSegSL_1e-05_0.0001_0_0_0065_zmuv_fp.onnx
 ```
 
-*Note*: If you only get a failed test, you might need to adapt the `CUDA_NVCC_FLAGS` in the `CMakeLists.txt` to build for your GPUs compute capabilities.
+## Evaluation on Cityscapes
 
-### Download CNN weights
+First make sure to download the [Cityscapes dataset](https://www.cityscapes-dataset.com/),
+especially the files:
+- camera_trainvaltest.zip (2MB)
+- leftImg8bit_trainvaltest.zip (11GB)
+- disparity_trainvaltest.zip (3.5GB)
+- gtFine_trainvaltest.zip (241MB)
 
-Download the CNN weights and save them to `instanceoffset/weights/`:
-* `drn_d_22_cityscapes.pth` from http://go.yf.io/drn-cityscapes-models
-* `Net_DRNRegDs_epoch45.pth` from https://surfdrive.surf.nl/files/index.php/s/7r8QEbTb1hcyvOS
-
-# Testing & running
-### Test on cityscapes
-
-To run the provided test script, you need the following files of Cityscapes:
-* leftImg8bit_trainvaltest.zip (11GB)
-* disparity_trainvaltest.zip (3.5GB)
-* gtFine_trainvaltest.zip (241MB)
-* camera_trainvaltest.zip (2MB)
-
-You can download these at https://www.cityscapes-dataset.com/downloads/.
-You have to register there to get access.
-Extract them in a single folder (the cityscapes root folder), 
-which should automatically contain the subfolders:
-* leftImg8bit/train
-* disparity/train
-* camera/train
-* gtFine/train
-
-Now, set the variable `CITYSCAPES_PATH` in `run.py` to point to the cityscapes
-root folder.
-You can then test the whole pipeline as follows:
+The Instance Stixels run script for Cityscapes expects the following folder
+structure:
 ```
-bash tests/run_test.sh verbose
+<CITYSCAPES_PATH>/
+    camera/train/
+        aachen/
+            aachen_*_*_camera.json
+        ...
+    camera/test/
+        aachen/
+            aachen_*_*_camera.json
+        ...
+    leftImg8bit/train/
+        aachen/
+            aachen_*_*_leftImg8bit.png
+        ...
+    leftImg8bit/test/
+        aachen/
+            aachen_*_*_leftImg8bit.png
+        ...
+    disparity/train/
+        aachen/
+            aachen_*_*_leftImg8bit.png
+        ...
+    disparity/test/
+        aachen/
+            aachen_*_*_leftImg8bit.png
+        ...
+    gtFine/train/
+        aachen/
+            aachen_*_*_gtFine_labelsIds.png
+            aachen_*_*_gtFine_instanceIds.png
+        ...
+    gtFine/test/
+        aachen/
+            aachen_*_*_gtFine_labelsIds.png
+            aachen_*_*_gtFine_instanceIds.png
+        ...
 ```
 
-### Running
-See the bash script `tests/run_test.sh` as an example of how to use `run.py`
-and checkout its command line help `python3 run.py --help`.
+You can now run the script [tests/run_test.sh](tests/run_test.sh) within the
+singularity container and bind the `<CITYSCAPES_PATH>` and `<WEIGHTS_PATH>`
+from the host as follows:
+```
+singularity run --app cityscapes_test --nv -B <CITYSCAPES_PATH>:/data/Cityscapes -B <WEIGHTS_PATH>:/data/weights instance-stixels.sif [long] [unary] [verbose]
+```
+
+The optional argument `long` will run the test script on the
+validation set of the cityscapes dataset. Thus, it will reproduce the results
+of Table I in our Journal publication.
+After running the test you can find visualizations of the
+results in the directory `~/.tmp/instance-stixels/long_test/stixelsim/`.
+The short test works simply with a subset of the validation data and is much
+faster.
+
+Furthermore, you can shell into the singularity container to run your own tests in
+the singularity container without installing any additional dependencies.
+You can use the script [tools/run_cityscapes.py](tools/run_cityscapes.py) for
+this.
+
+*Notes*:
+- This command will write temporary files to a `${HOME}/.tmp` directory on
+the host system.
+- The tests may fail when there are slight differences in the segmentation
+result (this usually only affects the average number of stixels).
+We experienced slight differences between different GPUs.
+Our results were obtained using a Titan V GPU.
+
+## ROS Node
+
+We provide a ROS node that segments images on-the-fly using Instance Stixels
+and outputs instance stixel messages (see below) as well as 3D marker arrays
+and images as visualizations. You can find a short video that highlights some
+of the features of the ROS node
+[here](https://surfdrive.surf.nl/files/index.php/s/HcSrUeUzVSnadwI)
+(this was an older version and more features have been added since then).
+
+The singularity image provides a simple way to run the
+[launch file](launch/instance_stixels.launch)
+of the ROS node in the singularity container:
+```
+singularity run --app ros_node --nv instance-stixels.sif onnxfilename:=/<WEIGHTS_PATH>/onnx/DRNDSDoubleSegSL_1e-05_0.0001_0_0_0065_zmuv_fp.onnx camera_id:=/<camera_id>
+```
+
+Running the nodes in the singularity container still enables you to communicate
+with the ROS node from ROS running on the host.
+This also means that you can use the ROS node in the container to process a
+rosbag played from the host system!
+
+When you use the command above, the ROS node subscribes to the following topics:
+- `/<camera_id>/disparity` [stereo_msgs/DisparityImage]
+- `/<camera_id>/left/image_color` [sensor_msgs/Image]
+- `/<camera_id>/left/camera_info` [sensor_msgs/CameraInfo
+- `/<camera_id>/right/camera_info` [sensor_msgs/CameraInfo]
+
+From the incoming left image and disparity image, the node will extract a
+1792x784 region of interest
+(see code in [apps/stixels_node.cu#L161](./apps/stixels_node.cu#L161))
+for details.
+
+## ROS messages for Instance Stixels
+
+The ROS message definitions can be found in a separate repository:
+<https://gitlab.tudelft.nl/intelligent-vehicles/instance_stixels_msgs>
+This allows to easily install and use the message definitions outside of the
+singularity container.
+
+# Installation without Singularity
+
+Using Instance Stixels without our singularity image will require you to
+install the necessary dependencies on your system, e.g. CUDA, TensorRT,
+[a custom CUML fork](https://github.com/tomsal/cuml), PyTorch, etc.
+This requires advanced knowledge and additional time, which is why we encourage
+you to try our singularity image first.
+To install all the required dependencies, we suggest to follow the steps
+described in the `%post` section of the
+[./singularity_recipe](./singularity_recipe).
+It provides step-by-step commands, like a bash-script, you can modify according
+to your wishes, e.g. ROS-specific parts are denoted in the comments.
 
 # Acknowlegdement
 
@@ -127,9 +194,8 @@ their code!
 * Catch2: https://github.com/catchorg/Catch2
 * RapidJSON: http://rapidjson.org/
 
-# Contact 
+# Contact
 
-See
-[paper](http://intelligent-vehicles.org/wp-content/uploads/2019/05/hehn2019iv_instance_stixels.pdf)
-for the email address of the corresponding author or go to
-http://www.intelligent-vehicles.org.
+Please use the github issues and pull requests for code related questions.
+For general questions, you find the email address of the corresponding author
+in the papers and at http://www.intelligent-vehicles.org.

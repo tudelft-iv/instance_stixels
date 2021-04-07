@@ -1,9 +1,14 @@
 .*.swp
 .*.swo
-*/build/*
+build/*
 data/
+tmp/
 logs/
 tests/*.log
 *.pth
+*.tar
+*.tar.*
 __pycache__
 matches.json
+weights/
+weights

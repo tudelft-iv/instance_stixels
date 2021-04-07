@@ -1,0 +1,179 @@
+BootStrap: docker
+From: nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
+
+%setup
+  mkdir -p ${SINGULARITY_ROOTFS}/opt/catkin_ws/src
+
+%files
+  # TensorRT installation zip.
+  ../TensorRT-7.0.0.11.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn7.6.tar.gz /opt/TensorRT-7.0.0.11.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn7.6.tar.gz
+  # Instance Stixels repository.
+  ./ /opt/catkin_ws/src/instance_stixels
+
+%post
+  # Follow the following commands if you want to install all required
+  # dependencies and run Instance Stixels without singularity.
+
+  # Make sure all files are available where we expect them.
+  ls /opt/TensorRT-7.0.0.11.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn7.6.tar.gz
+  ls /opt/catkin_ws/src/instance_stixels
+  touch /usr/bin/nvidia-smi
+  ln -s /data/weights /opt/catkin_ws/src/instance_stixels/weights
+  echo "Compiling and installing project (including dependencies) in the image"
+
+  apt-get update -y
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    lsb-core \
+    locales \
+    git \
+    libopencv-dev \
+    libhdf5-dev \
+    libopenblas-dev \
+    cmake \
+    wget
+
+  # Install cmake 3.14.4
+  cd /tmp && \
+    wget https://github.com/Kitware/CMake/releases/download/v3.14.4/cmake-3.14.4-Linux-x86_64.sh && \
+    chmod +x cmake-3.14.4-Linux-x86_64.sh && \
+    ./cmake-3.14.4-Linux-x86_64.sh --prefix=/usr/local --exclude-subdir --skip-license && \
+    rm ./cmake-3.14.4-Linux-x86_64.sh
+
+  # ROS: Install ROS
+  # We need to retry finding the keyserver a couple of times because it sometimes fails due to a timeout
+  for i in $(seq 1 5);
+    do apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 && s=0 && break || s=$? && sleep 5;
+  done;
+  (exit $s)
+  echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/ros-latest.list
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -q -y ros-melodic-ros-base python-rosdep
+  . /opt/ros/melodic/setup.sh
+  rosdep init
+
+  # ROS: Get instance_stixels_msgs repository.
+  git clone https://github.com/tudelft-iv/instance_stixels_msgs.git /opt/catkin_ws/src/instance_stixels_msgs
+
+  # ROS: Install dependencies.
+  rosdep update
+  rosdep install --from-paths /opt/catkin_ws/src --ignore-src -y
+
+  # Not relevant for ROS-node, but just for command line interface for
+  # cityscapes!
+  # Install anaconda
+  cd /tmp
+  wget https://repo.anaconda.com/miniconda/Miniconda3-py37_4.8.2-Linux-x86_64.sh
+  bash Miniconda3-py37_4.8.2-Linux-x86_64.sh -b -p /usr/local/miniconda3
+  /usr/local/miniconda3/bin/conda clean --all
+  rm /tmp/Miniconda3-py37_4.8.2-Linux-x86_64.sh
+  chmod a+rwx -R /usr/local/miniconda3
+  export PATH=${PATH}:/usr/local/miniconda3/bin
+
+  # Create conda environment, apex needs to be installed via pip
+  conda env create -f\
+    /opt/catkin_ws/src/instance_stixels/tools/instance_stixel_env.yml
+  bash -c "\
+    source activate instance_stixels &&\
+    git clone https://github.com/NVIDIA/apex /opt/apex &&\
+    cd /opt/apex &&\
+    git checkout 4a1aa97e31ca87514e17c3cd3bbc03f4204579d0 &&\
+    pip install -v --no-cache-dir --global-option="--cpp_ext"\
+       --global-option="--cuda_ext" ./ &&\
+    conda deactivate"
+  chmod a+rwx -R /usr/local/miniconda3
+
+  # The official cityscapesscripts package uses some default paths which are
+  # not accessible for writing within the singularity container.
+  # Those default paths need to be changed for the singularity image, but
+  # should not matter in case you install Instance Stixels on your system
+  # without singularity.
+  # Adapt default path of cityscapesscripts... terrible hack btw.
+  FILEPATH="/usr/local/miniconda3/envs/instance_stixels/lib/python3.6/site-packages/cityscapesscripts/evaluation/evalInstanceLevelSemanticLabeling.py"
+
+  LINE1="args.gtInstancesFile    = os.path.join(os.path.dirname(os.path.realpath(__file__)),'gtInstances.json')";
+  LINE2="args.gtInstancesFile    = os.path.join(os.path.expanduser('~'),'.tmp','instance-stixels','gtInstances.json')";
+  sed -ie "s/^${LINE1}$/${LINE2}/" ${FILEPATH}
+
+  LINE3="args.exportFile         = os.path.join( args.cityscapesPath";
+  LINE4="args.exportFile         = os.path.join( os.path.expanduser('~'),'.tmp','instance-stixels'";
+  sed -ie "s/^${LINE3}/${LINE4}/" ${FILEPATH}
+
+  # Install TensorRT
+  tar -xvzf /opt/TensorRT-7.0.0.11.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn7.6.tar.gz -C /usr/local
+  export TRT_RELEASE=/usr/local/TensorRT-7.0.0.11
+  rm /opt/TensorRT-7.0.0.11.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn7.6.tar.gz
+
+  # Install custom cuml fork
+  conda install libclang=8.0.0 -c rapidsai
+  git clone https://github.com/tomsal/cuml.git /usr/local/cuml
+  cd /usr/local/cuml
+  git checkout dbscan-sizefilter
+  git submodule update --init --recursive
+  mkdir cpp/build && cd cpp/build
+  # use cmake 3.14.4
+  export CUDA_BIN_PATH=/usr/local/cuda
+  export CUDACXX=/usr/local/cuda/bin/nvcc
+  /usr/local/bin/cmake -DGPU_ARCHS="61;70;75" \
+        -DBUILD_CUML_CPP_LIBRARY="ON" \
+        -DBUILD_CUML_C_LIBRARY="OFF" \
+        -DBUILD_CUML_TESTS="OFF" \
+        -DBUILD_CUML_MG_TESTS="OFF" \
+        -DBUILD_PRIMS_TESTS="OFF" \
+        -DBUILD_CUML_EXAMPLES="OFF" \
+        -DBUILD_CUML_BENCH="OFF" \
+        ..
+	#-DNCCL_ROOT=/usr/local/cuda \
+	#-DNCCL_LIBRARY=/usr/local/cuda/lib64/libnccl.so \
+  make -j
+  make install
+
+  # Build actual code.
+  # If you don't want ROS, you may also use cmake on the CMakeLists.txt files
+  # in the repository. It should be able to detect whether ROS is available and
+  # build accordingly.
+  # E.g:
+  # $ cd instance_stixels/
+  # $ mkdir build && cd build
+  # $ cmake ..
+  # $ make
+  cd /opt/catkin_ws
+  catkin_make \
+    -DCMAKE_BUILD_TYPE=Release #\
+    #install \
+    #-j1 \
+    #-DCMAKE_INSTALL_PREFIX=/opt/ros/melodic
+  ln -s /opt/catkin_ws/build/instance_stixels/ /opt/catkin_ws/src/instance_stixels/build
+
+%environment
+  export TRT_RELEASE=/usr/local/TensorRT-7.0.0.11
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib:$TRT_RELEASE/lib
+  export PATH=${PATH}:/usr/local/miniconda3/bin
+
+%runscript
+  echo "Please use the --app option."
+  echo "singularity run --app ros_node --nv instance-stixels.sif"
+  echo "singularity run --app cityscapes_test --nv "\
+       "-B <Host-cityscapes-folder>:/data/Cityscapes "\
+       "-B <Host-weights-folder>:/data/weights instance-stixels.sif"
+
+%apprun cityscapes_test
+  DATA_DIRECTORY="${HOME}/.tmp/instance-stixels"
+  echo "Creating directory ${DATA_DIRECTORY} for temporary files."
+  mkdir -p ${DATA_DIRECTORY}
+  export DATA_DIRECTORY
+  export CITYSCAPES_EXPORT_DIR="${DATA_DIRECTORY}"
+  exec bash /opt/catkin_ws/src/instance_stixels/tests/run_test.sh "$@"
+
+%apphelp cityscapes_test
+  This is the help for the cityscapes_test.
+  Run the app as follows:
+  singularity run --app cityscapes_test --nv \
+    -B <Host-cityscapes-folder>:/data/Cityscapes \
+    -B <Host-weights-folder>:/data/weights instance-stixels.sif
+
+%apprun ros_node
+  . /opt/catkin_ws/devel/setup.sh
+  exec roslaunch instance_stixels instance_stixels.launch "$@"
+
+%apphelp ros_node
+  This is the help for ros_node.
