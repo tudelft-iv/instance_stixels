@@ -167,7 +167,7 @@ for details.
 ## ROS messages for Instance Stixels
 
 The ROS message definitions can be found in a separate repository:
-<https://gitlab.tudelft.nl/intelligent-vehicles/instance_stixels_msgs>
+<https://github.com/tudelft-iv/instance_stixels_msgs>
 This allows to easily install and use the message definitions outside of the
 singularity container.
 
